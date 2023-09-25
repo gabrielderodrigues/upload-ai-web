@@ -1,10 +1,11 @@
-import { FileVideo, Github, Upload, Wand2 } from 'lucide-react';
+import { Github, Wand2 } from 'lucide-react';
 import { Button } from './components/ui/button'
 import { Separator } from './components/ui/separator';
 import { Textarea } from './components/ui/textarea';
 import { Label } from './components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './components/ui/select';
 import { Slider } from './components/ui/slider';
+import { VideoInputForm } from './components/video-input-form';
 
 export function App() {
 
@@ -41,36 +42,12 @@ export function App() {
             Lembre-se: você pode utilizar a variável <code className="text-violet-400">{'transcription'}</code> no seu prompt para adicionar o conteúdo da transcrição do vídeo selecionado.</p>
         </div>
         <aside className="w-80 space-y-6">
-          <form className="space-y-6">
-            <label 
-              htmlFor="video"
-              className="border flex rounded-md aspect-video cursor-pointer border-dashed text-sm flex-col gap-2 items-center justify-center text-muted-foreground hover:bg-primary/5">
-              <FileVideo className="w-4 h-4"/>
-              Selecione um vídeo
-            </label>
-
-            <input type="file" id="video" accept="video/mp4" className="sr-only"/>
-
-            <Separator />
-
-            <div className="space-y-2">
-              <Label htmlFor="transcriptionPrompt">Prompt de transcrição</Label>
-              <Textarea 
-                id="transcription_prompt"
-                className="h-20 leading-relaxed resize-none"
-                placeholder="Inclua palavras mencionadas no vídeo separadas por vírgula (,)"/>
-            </div>
-
-            <Button type="submit" className="w-full">
-              Carregar vídeo
-              <Upload className="w-4 h-4 ml-2" />
-            </Button>
-          </form>
+          <VideoInputForm />
 
           <Separator />
 
           <form className="space-y-6">
-          <div className="space-y-1">
+            <div className="space-y-1">
               <Label>Prompt</Label>
               <Select>
                 <SelectTrigger>
