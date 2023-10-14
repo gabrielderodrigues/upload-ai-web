@@ -4,9 +4,26 @@ import { Button } from "./ui/button";
 import { FileVideo, Upload } from "lucide-react";
 import { Label } from "@radix-ui/react-label";
 import { ChangeEvent, FormEvent, useMemo, useRef, useState } from "react";
+import { getFFmpeg } from "@/lib/ffmpeg";
+import { fetchFile } from "@ffmpeg/util";
+import { api } from "@/lib/axios";
 
-export function VideoInputForm() {
-  const [videoFile, setVideoFile] = useState<File | null>(null);
+type Status = 'waiting' | 'converting' | 'uploading' | 'generating' | 'success';
+
+const statusMessages = {
+  converting: "Convertendo...",
+  generating: "Transcrevendo...",
+  uploading: "Carregando...",
+  success: "Sucesso!",
+};
+
+interface VideoInputFormProps {
+  onVideoUploaded: (id: string) => void
+}
+
+export function VideoInputForm(props: VideoInputFormProps) {
+  const [videoFile, setVideoFile] = useState<File | null>(null);  
+  const [status, setStatus] = useState<Status>('waiting');
   const promptInputRef = useRef<HTMLTextAreaElement>(null);
 
   function handleFileSelected(event: ChangeEvent<HTMLInputElement>) {
@@ -21,7 +38,44 @@ export function VideoInputForm() {
     setVideoFile(selectedFile);
   }
 
-  function handleUploadVideo(event: FormEvent<HTMLFormElement>) {
+  async function convertVideoToAudio(video: File) {
+    const ffmpeg = await getFFmpeg();
+
+    await ffmpeg.writeFile("input.mp4", await fetchFile(video));
+
+    // ffmpeg.on('log', log => {
+    //   console.log(log);
+    // });
+
+    ffmpeg.on('progress', progress => {
+      console.log('Convert progress: ' + Math.round(progress.progress * 100))
+    });
+
+    await ffmpeg.exec([
+      '-i',
+      'input.mp4',
+      '-map',
+      '0:a',
+      '-b:a',
+      '20k',
+      '-acodec',
+      'libmp3lame',
+      'output.mp3'
+    ]);
+
+    const data = await ffmpeg.readFile('output.mp3');
+
+    const audioFileBlob = new Blob([data], { 
+      type: 'audio/mpeg' 
+    });
+    const audioFile = new File([audioFileBlob], 'audio.mp3', { 
+      type: 'audio/mpeg' 
+    });
+
+    return audioFile;
+  }
+
+  async function handleUploadVideo(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     const prompt = promptInputRef.current?.value;
@@ -30,9 +84,32 @@ export function VideoInputForm() {
       return;
     }
 
+    setStatus("converting");
+
     // convert video em audio
     // this will be implemented on the front-side because if it was in back-end side it would execute in the server. Imagine 1000 people try to do this operation at the same time. It would be heavy. It will be executed on the front because it's going to execute on the user browser.
     
+    const audioFile = await convertVideoToAudio(videoFile);
+
+    const data = new FormData();
+
+    data.append('file', audioFile);
+
+    setStatus("uploading");
+
+    const response = await api.post('/videos', data);
+
+    const videoId = response.data.video.id;
+
+    setStatus("generating");
+
+    await api.post(`/videos/${videoId}/transcription`, {
+      prompt,
+    });
+
+    setStatus("success");
+
+    props.onVideoUploaded(videoId);
   }
 
   // Allows a video preview
@@ -79,15 +156,25 @@ export function VideoInputForm() {
       <div className="space-y-2">
         <Label htmlFor="transcriptionPrompt">Prompt de transcrição</Label>
         <Textarea 
+          disabled={status !== 'waiting'}
           ref={promptInputRef}
           id="transcription_prompt"
           className="h-20 leading-relaxed resize-none"
           placeholder="Inclua palavras mencionadas no vídeo separadas por vírgula (,)"/>
       </div>
 
-      <Button type="submit" className="w-full">
-        Carregar vídeo
-        <Upload className="w-4 h-4 ml-2" />
+      <Button 
+      data-success={status === 'success'}  
+      disabled={status !== 'waiting'} 
+      type="submit" 
+      className="w-full data-[success=true]:bg-emerald-400">
+        {status === 'waiting' ? (
+          <>
+          Carregar vídeo
+          <Upload className="w-4 h-4 ml-2" />
+          </>
+          ) : statusMessages[status]
+        }
       </Button>
     </form>
   );
